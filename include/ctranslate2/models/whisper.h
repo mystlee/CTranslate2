@@ -56,6 +56,9 @@ namespace ctranslate2 {
       // List of token IDs to suppress.
       // -1 will suppress a default set of symbols as defined in the model config.json file.
       std::vector<int> suppress_tokens = {-1};
+
+      // Stop generation when the same token is repeated this many times consecutively (0 to disable).
+      size_t max_token_repeat = 0;
     };
 
     struct WhisperGenerationResult {
