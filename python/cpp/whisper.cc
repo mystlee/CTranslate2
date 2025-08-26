@@ -46,7 +46,8 @@ namespace ctranslate2 {
                bool suppress_blank,
                const std::optional<std::vector<int>>& suppress_tokens,
                size_t sampling_topk,
-               float sampling_temperature) {
+               float sampling_temperature,
+               size_t max_token_repeat) {
         std::vector<std::future<models::WhisperGenerationResult>> futures;
 
         models::WhisperOptions options;
@@ -57,6 +58,7 @@ namespace ctranslate2 {
         options.no_repeat_ngram_size = no_repeat_ngram_size;
         options.sampling_topk = sampling_topk;
         options.sampling_temperature = sampling_temperature;
+        options.max_token_repeat = max_token_repeat;
         options.max_length = max_length;
         options.num_hypotheses = num_hypotheses;
         options.return_scores = return_scores;
@@ -259,6 +261,7 @@ namespace ctranslate2 {
              py::arg("suppress_tokens")=std::vector<int>{-1},
              py::arg("sampling_topk")=1,
              py::arg("sampling_temperature")=1,
+             py::arg("max_token_repeat")=0,
              py::call_guard<py::gil_scoped_release>(),
              R"pbdoc(
                  Encodes the input features and generates from the given prompt.
@@ -291,6 +294,7 @@ namespace ctranslate2 {
                      of symbols as defined in the model ``config.json`` file.
                    sampling_topk: Randomly sample predictions from the top K candidates.
                    sampling_temperature: Sampling temperature to generate more random samples.
+                   max_token_repeat: Stop generation when the same token is produced this many times consecutively.
 
                  Returns:
                    A list of generation results.

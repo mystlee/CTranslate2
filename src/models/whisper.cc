@@ -226,6 +226,54 @@ namespace ctranslate2 {
       }
     };
 
+    class StopRepeatingTokens : public LogitsProcessor {
+    private:
+      const size_t _max_repeat;
+      const size_t _eot_id;
+
+    public:
+      StopRepeatingTokens(size_t max_repeat, size_t eot_id)
+        : _max_repeat(max_repeat)
+        , _eot_id(eot_id)
+      {
+      }
+
+      void apply(dim_t,
+                 StorageView& logits,
+                 DisableTokens& disable_tokens,
+                 const StorageView& sequences,
+                 const std::vector<dim_t>&,
+                 const std::vector<std::vector<size_t>>*) override {
+        if (!sequences || _max_repeat == 0)
+          return;
+
+        const dim_t length = sequences.dim(1);
+        if (length < static_cast<dim_t>(_max_repeat))
+          return;
+
+        const dim_t batch_size = sequences.dim(0);
+        const dim_t vocab_size = logits.dim(-1);
+
+        for (dim_t batch_id = 0; batch_id < batch_size; ++batch_id) {
+          const auto* tokens = sequences.index<int32_t>({batch_id, 0});
+          const auto last_token = tokens[length - 1];
+          bool repeated = true;
+          for (size_t i = 1; i < _max_repeat; ++i) {
+            if (tokens[length - 1 - i] != last_token) {
+              repeated = false;
+              break;
+            }
+          }
+
+          if (repeated) {
+            for (dim_t v = 0; v < vocab_size; ++v)
+              if (v != static_cast<dim_t>(_eot_id))
+                disable_tokens.add(batch_id, v);
+          }
+        }
+      }
+    };
+
     std::vector<WhisperGenerationResult>
     WhisperReplica::generate(StorageView features,
                              const std::vector<std::vector<size_t>>& prompts,
@@ -300,6 +348,9 @@ namespace ctranslate2 {
       decoding_options.max_length = std::min(total_max_length / 2, total_max_length - start_step);
       decoding_options.sampling_topk = options.sampling_topk;
       decoding_options.sampling_temperature = options.sampling_temperature;
+      if (options.max_token_repeat > 0)
+        decoding_options.logits_processors.emplace_back(
+          std::make_shared<StopRepeatingTokens>(options.max_token_repeat, _eot_id));
       decoding_options.num_hypotheses = options.num_hypotheses;
       decoding_options.return_scores = options.return_scores;
       decoding_options.return_logits_vocab = options.return_logits_vocab;
